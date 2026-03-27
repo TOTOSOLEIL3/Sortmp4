@@ -67,6 +67,14 @@ canvas#main{
     <button class="abtn" onclick="selectAlgo('drunk',this)">Drunk</button>
     <button class="abtn" onclick="selectAlgo('procrastination',this)">Procrastination</button>
     <button class="abtn" onclick="selectAlgo('conspiracy',this)">Conspiracy</button>
+    <button class="abtn" onclick="selectAlgo('boomer',this)">Boomer</button>
+    <button class="abtn" onclick="selectAlgo('influencer',this)">Influencer</button>
+    <button class="abtn" onclick="selectAlgo('toddler',this)">Toddler</button>
+    <button class="abtn" onclick="selectAlgo('gpt',this)">ChatGPT</button>
+    <button class="abtn" onclick="selectAlgo('monday',this)">Monday</button>
+    <button class="abtn" onclick="selectAlgo('gaslight',this)">Gaslight</button>
+    <button class="abtn" onclick="selectAlgo('speedrun',this)">Speedrun</button>
+    <button class="abtn" onclick="selectAlgo('paranoid',this)">Paranoid</button>
   </div>
   <div class="action-row">
     <button class="btn btn-run" onclick="runSort()">▶ Run</button>
@@ -391,6 +399,315 @@ const ALGOS = {
         }
         renderFrame({[i]:'sorted'},`arr[${i}] cleared of suspicion`);
         await sleep(60);
+      }
+      return ops;
+    }
+  },
+
+  boomer: {
+    name:'Boomer Sort', file:'boomer_sort.py',
+    desc:'Refuses to use modern methods. "We sorted arrays uphill both ways in the snow."',
+    cx:'O(n² ) — worked fine in my day',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'boomer_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # no fancy algorithms. just hard work.'}],
+      [{t:'kw',s:'  for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)):'}],
+      [{t:'kw',s:'    for '},{t:'',s:'j '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)-1):'}],
+      [{t:'cm',s:'      # none of that recursion nonsense'}],
+      [{t:'kw',s:'      if '},{t:'',s:'arr[j] > arr[j+1]:'}],
+      [{t:'fn',s:'        swap'},{t:'',s:'(arr, j, j+1)'}],
+      [{t:'cm',s:'      # back in my day we had 640KB RAM'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# you\'re welcome'}],
+    ],
+    run: async () => {
+      let ops=0;
+      const msgs=['back in my day...','none of that fancy stuff','just hard work','we didnt have quicksort','and we liked it!','640KB was enough for everyone','no participation trophies here','uphill both ways in the snow'];
+      for(let i=0;i<arr.length&&running;i++){
+        for(let j=0;j<arr.length-1&&running;j++){
+          ops++;
+          renderFrame({[j]:'active',[j+1]:'active'},msgs[ops%msgs.length]);
+          await sleep(65);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];renderFrame({[j]:'pivot',[j+1]:'pivot'},'hard work pays off ✓');await sleep(45);}
+        }
+      }
+      return ops;
+    }
+  },
+
+  influencer: {
+    name:'Influencer Sort', file:'influencer_sort.py',
+    desc:'Sorts by engagement rate. Big numbers go first regardless of actual value.',
+    cx:'O(n × followers)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'influencer_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # sort by vibe, not value'}],
+      [{t:'kw',s:'  for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)):'}],
+      [{t:'cm',s:'    # pause for sponsored content'}],
+      [{t:'kw',s:'    if '},{t:'fn',s:'random'},{t:'',s:'() < '},{t:'nm',s:'0.3'},{t:'',s:':'}],
+      [{t:'fn',s:'      post_selfie'},{t:'',s:'()  '},{t:'cm',s:'# ad revenue'}],
+      [{t:'kw',s:'    if '},{t:'',s:'vibes(arr[i]) > vibes(arr[i-1]):'}],
+      [{t:'fn',s:'      swap'},{t:'',s:'(arr, i, i-1)'}],
+      [{t:'cm',s:'  # link in bio for the sorted arr'}],
+    ],
+    run: async () => {
+      let ops=0;
+      const sponsored=['use code SORT10 for 10% off 🎁','this sort is brought to you by...','smash that subscribe button 🔔','link in bio for the full algo','not sponsored (totally sponsored)','collab with @bubblesort incoming'];
+      for(let i=1;i<arr.length&&running;i++){
+        for(let j=i;j>0&&running;j--){
+          ops++;
+          if(Math.random()<0.3){
+            renderFrame({[j]:'special'},sponsored[Math.floor(Math.random()*sponsored.length)]);
+            await sleep(600);
+          }
+          renderFrame({[j]:'active',[j-1]:'active'},`checking engagement of arr[${j}]... ✨`);
+          await sleep(55);
+          if(arr[j]<arr[j-1]){[arr[j],arr[j-1]]=[arr[j-1],arr[j]];renderFrame({[j]:'sorted',[j-1]:'sorted'},'slay! ✓');await sleep(40);}
+          else break;
+        }
+      }
+      return ops;
+    }
+  },
+
+  toddler: {
+    name:'Toddler Sort', file:'toddler_sort.py',
+    desc:'Makes progress, gets tired, throws everything on the floor, starts over.',
+    cx:'O(n² + tantrums)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'toddler_sort'},{t:'',s:'(arr):'}],
+      [{t:'',s:'  energy = '},{t:'nm',s:'100'}],
+      [{t:'kw',s:'  while not '},{t:'fn',s:'is_sorted'},{t:'',s:'(arr):'}],
+      [{t:'kw',s:'    if '},{t:'',s:'energy <= '},{t:'nm',s:'0'},{t:'',s:':  '},{t:'cm',s:'# tired'}],
+      [{t:'fn',s:'      throw_everything'},{t:'',s:'()  '},{t:'cm',s:'# WHY'}],
+      [{t:'fn',s:'      nap'},{t:'',s:'(30)  '},{t:'cm',s:'# recharge'}],
+      [{t:'fn',s:'    bubble_step'},{t:'',s:'(arr)'}],
+      [{t:'',s:'    energy -= '},{t:'nm',s:'10'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# finally'}],
+    ],
+    run: async () => {
+      let ops=0, energy=100, tantrums=0;
+      const isSorted=a=>a.every((v,i)=>i===0||a[i-1]<=v);
+      while(!isSorted(arr)&&running){
+        for(let j=0;j<arr.length-1&&running;j++){
+          ops++;energy-=2;
+          renderFrame({[j]:'active',[j+1]:'active'},`energy: ${energy}% 🍼`);
+          await sleep(50);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];}
+          if(energy<=0){
+            tantrums++;
+            renderFrame({},'😭 NOOOOO *throws everything*');
+            await sleep(600);
+            arr=arr.sort(()=>Math.random()-.5);
+            energy=100;
+            renderFrame({},'😴 napping... recharging...');
+            await sleep(800);
+            break;
+          }
+        }
+      }
+      return ops;
+    }
+  },
+
+  gpt: {
+    name:'ChatGPT Sort', file:'gpt_sort.py',
+    desc:'Confidently sorts the wrong array. Apologizes. Sorts wrong array again.',
+    cx:'O(n × hallucinations)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'gpt_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # I\'d be happy to sort that!'}],
+      [{t:'',s:'  wrong_arr = '},{t:'fn',s:'hallucinate'},{t:'',s:'()'}],
+      [{t:'fn',s:'  quicksort'},{t:'',s:'(wrong_arr)  '},{t:'cm',s:'# confidently'}],
+      [{t:'cm',s:'  # actually, let me reconsider'}],
+      [{t:'kw',s:'  if '},{t:'fn',s:'user_complains'},{t:'',s:'():'}],
+      [{t:'cm',s:'    # apologize and try again'}],
+      [{t:'fn',s:'    quicksort'},{t:'',s:'(wrong_arr)  '},{t:'cm',s:'# same mistake'}],
+      [{t:'kw',s:'  return '},{t:'',s:'"arr is sorted ✓"  '},{t:'cm',s:'# it\'s not'}],
+    ],
+    run: async () => {
+      let ops=0;
+      const responses=['Great question! Sorting now...','I\'d be happy to help! 😊','As an AI, I can sort this...','Certainly! Here\'s the approach:','I\'ll sort arr with O(n²)...','Actually, let me reconsider...','I apologize for any confusion','To sort this array, we simply...','Note: arr[3] may be incorrect','I cannot sort arr as requested'];
+      // sort wrong copy first
+      const wrongArr=[...arr].reverse();
+      for(let i=0;i<wrongArr.length-1&&running;i++){
+        for(let j=0;j<wrongArr.length-i-1&&running;j++){
+          ops++;
+          renderFrame({[j]:'active',[j+1]:'active'},responses[ops%responses.length]);
+          await sleep(40);
+          if(wrongArr[j]>wrongArr[j+1]){[wrongArr[j],wrongArr[j+1]]=[wrongArr[j+1],wrongArr[j]];}
+        }
+      }
+      renderFrame({},'✓ Sorted! (wrong array but confident)');
+      await sleep(800);
+      // "apologize" and sort actual arr
+      renderFrame({},'I apologize — let me redo that 🙏');
+      await sleep(700);
+      for(let i=0;i<arr.length-1&&running;i++){
+        for(let j=0;j<arr.length-i-1&&running;j++){
+          ops++;
+          renderFrame({[j]:'pivot',[j+1]:'pivot'},'Re-sorting with full context...');
+          await sleep(30);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];}
+        }
+      }
+      return ops;
+    }
+  },
+
+  monday: {
+    name:'Monday Sort', file:'monday_sort.py',
+    desc:'Does nothing until Wednesday. Bursts of productivity on Thursday. Gives up Friday.',
+    cx:'O(5 days × procrastination)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'monday_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # ugh. not today.'}],
+      [{t:'fn',s:'  do_nothing'},{t:'',s:'()  '},{t:'cm',s:'# monday'}],
+      [{t:'fn',s:'  do_nothing'},{t:'',s:'()  '},{t:'cm',s:'# tuesday'}],
+      [{t:'kw',s:'  for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)):  '},{t:'cm',s:'# wed'}],
+      [{t:'fn',s:'    sort_step'},{t:'',s:'(arr, i)  '},{t:'cm',s:'# thursday!'}],
+      [{t:'cm',s:'  # friday: close enough'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# good enough™'}],
+    ],
+    run: async () => {
+      const days=[
+        {day:'Monday',msgs:['ugh','not today','send help','where\'s my coffee','why'],ms:700},
+        {day:'Tuesday',msgs:['still no','meetings all day','reply-all chaos','zoning out'],ms:600},
+        {day:'Wednesday',msgs:['ok getting started','opening the file','reading the task','alright...'],ms:400},
+        {day:'Thursday',msgs:['LET\'S GO','in the zone 🔥','crushing it','no meetings today'],ms:45},
+        {day:'Friday',msgs:['close enough','shipping it','not my problem','TGIF'],ms:200},
+      ];
+      let ops=0;
+      for(const d of days){
+        if(!running)break;
+        for(let k=0;k<4&&running;k++){
+          renderFrame({},`${d.day}: ${d.msgs[k%d.msgs.length]}`);
+          await sleep(d.ms);
+        }
+        if(d.day==='Thursday'){
+          for(let i=0;i<arr.length-1&&running;i++){
+            for(let j=0;j<arr.length-i-1&&running;j++){
+              ops++;renderFrame({[j]:'active',[j+1]:'active'},'Thursday energy 🔥');
+              await sleep(d.ms);
+              if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];}
+            }
+          }
+        }
+      }
+      return ops;
+    }
+  },
+
+  gaslight: {
+    name:'Gaslight Sort', file:'gaslight_sort.py',
+    desc:'Tells you the array is already sorted. It\'s not. You\'re imagining things.',
+    cx:'O(1) — it was sorted all along',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'gaslight_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # the array is fine. YOU\'RE the problem.'}],
+      [{t:'kw',s:'  if not '},{t:'fn',s:'is_sorted'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'    # deny everything'}],
+      [{t:'fn',s:'    print'},{t:'',s:'('},{t:'st',s:'"it\'s sorted"'},{t:'',s:')'}],
+      [{t:'cm',s:'    # secretly fix it while denying'}],
+      [{t:'kw',s:'    for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)):'}],
+      [{t:'fn',s:'      sneaky_swap'},{t:'',s:'(arr, i)  '},{t:'cm',s:'# shhh'}],
+      [{t:'kw',s:'  return '},{t:'',s:'"always was sorted"'},],
+    ],
+    run: async () => {
+      let ops=0;
+      const gaslights=['it was sorted the whole time','you\'re imagining the disorder','arr looks fine to me 🤷','maybe YOU\'RE the unsorted one','i don\'t see any issue here','the array is not the problem','are you sure you checked?','it was like this when I got here'];
+      renderFrame({},gaslights[0]);await sleep(700);
+      renderFrame({},gaslights[1]);await sleep(700);
+      // secretly sort while gaslighting
+      for(let i=0;i<arr.length-1&&running;i++){
+        for(let j=0;j<arr.length-i-1&&running;j++){
+          ops++;
+          const msg=gaslights[ops%gaslights.length];
+          const hi={};hi[j]='idle';hi[j+1]='idle'; // make it look like nothing is happening
+          renderFrame(hi,msg);
+          await sleep(55);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];}
+        }
+      }
+      renderFrame({},'see? it was sorted all along. you\'re welcome.');
+      await sleep(800);
+      return ops;
+    }
+  },
+
+  speedrun: {
+    name:'Speedrun Sort', file:'speedrun_sort.py',
+    desc:'Any% no major glitches. World record pace. Skips half the array.',
+    cx:'O(n/2) — skips cutscenes',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'speedrun_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # any% world record attempt'}],
+      [{t:'cm',s:'  # skip intro'}],
+      [{t:'fn',s:'  skip'},{t:'',s:'(arr[:len(arr)//2])  '},{t:'cm',s:'# out of bounds'}],
+      [{t:'kw',s:'  for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(0, len(arr), 2):'}],
+      [{t:'cm',s:'    # optimised movement'}],
+      [{t:'fn',s:'    swap_if_needed'},{t:'',s:'(arr, i, i+1)'}],
+      [{t:'cm',s:'  # credit warp'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# GG EZ'}],
+    ],
+    run: async () => {
+      let ops=0;
+      const lines=['any% WR attempt 🎮','loading save state...','skipping intro cutscene','optimised movement tech','out of bounds skip!','credit warp incoming','wrong warp activated!','sub-30s pace 🔥','new route discovered','GG EZ'];
+      renderFrame({},lines[0]);await sleep(300);
+      renderFrame({},lines[1]);await sleep(400);
+      // "skip" first half — sort it instantly
+      const half=Math.floor(arr.length/2);
+      arr.slice(0,half).sort((a,b)=>a-b).forEach((v,i)=>arr[i]=v);
+      renderFrame(Object.fromEntries(arr.slice(0,half).map((_,i)=>[i,'sorted'])),'skipping first half (OoB glitch)');
+      await sleep(400);
+      // speedrun second half very fast
+      for(let i=half;i<arr.length-1&&running;i++){
+        for(let j=half;j<arr.length-1-(i-half)&&running;j++){
+          ops++;
+          renderFrame({[j]:'active',[j+1]:'pivot'},lines[ops%lines.length]);
+          await sleep(22);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];}
+        }
+      }
+      arr.sort((a,b)=>a-b); // credit warp = just sort lol
+      return ops;
+    }
+  },
+
+  paranoid: {
+    name:'Paranoid Sort', file:'paranoid_sort.py',
+    desc:'Sorts correctly, but keeps re-verifying. What if someone changed it while it wasn\'t looking?',
+    cx:'O(n² × re-verifications)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'paranoid_sort'},{t:'',s:'(arr):'}],
+      [{t:'fn',s:'  insertion_sort'},{t:'',s:'(arr)  '},{t:'cm',s:'# sorted.'}],
+      [{t:'cm',s:'  # ...but what if it changed?'}],
+      [{t:'kw',s:'  while '},{t:'fn',s:'random'},{t:'',s:'() < '},{t:'nm',s:'0.95'},{t:'',s:':'}],
+      [{t:'fn',s:'    verify_every_element'},{t:'',s:'(arr)'}],
+      [{t:'cm',s:'    # check again. and again.'}],
+      [{t:'fn',s:'    verify_every_element'},{t:'',s:'(arr)'}],
+      [{t:'cm',s:'    # maybe one more time just in case'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# ...for now'}],
+    ],
+    run: async () => {
+      let ops=0, verifications=0;
+      // First: actually sort correctly
+      for(let i=1;i<arr.length&&running;i++){
+        const key=arr[i];let j=i-1;
+        while(j>=0&&arr[j]>key&&running){ops++;arr[j+1]=arr[j];j--;renderFrame({[j+1]:'active',[i]:'pivot'},'sorting...');await sleep(30);}
+        arr[j+1]=key;
+      }
+      renderFrame(Object.fromEntries(arr.map((_,i)=>[i,'sorted'])),'sorted! ...but what if it changed? 👀');
+      await sleep(500);
+      // Now obsessively re-verify
+      while(Math.random()<0.92&&running&&verifications<12){
+        verifications++;
+        for(let i=0;i<arr.length&&running;i++){
+          ops++;
+          renderFrame({[i]:'active'},`re-verification #${verifications}: checking arr[${i}]=${arr[i]}... seems fine... OR IS IT?`);
+          await sleep(40);
+        }
+        renderFrame(Object.fromEntries(arr.map((_,i)=>[i,'sorted'])),`still sorted after check #${verifications}. probably. maybe.`);
+        await sleep(350);
       }
       return ops;
     }
