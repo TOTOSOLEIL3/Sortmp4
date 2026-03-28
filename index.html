@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Absurd Sorts</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#1a1a1a;
+  display:flex;justify-content:center;align-items:center;
+  min-height:100vh;flex-direction:column;gap:14px;padding:20px;
+  font-family:'Inter',sans-serif;
+}
+
+/* The phone is actually a canvas-backed div */
+.phone-wrap{position:relative;width:390px;height:844px;flex-shrink:0}
+canvas#main{
+position:absolute;inset:0;width:390px;height:844px;
+border-radius:10px;
+}
+/* Invisible overlay for clicks */
+.click-layer{position:absolute;inset:0;z-index:10}
+
+/* CONTROLS OUTSIDE */
+.outer-controls{width:390px;display:flex;flex-direction:column;gap:8px}
+.algo-btns{display:flex;gap:6px;flex-wrap:wrap}
+.abtn{
+flex:1;min-width:100px;padding:9px 10px;border:none;border-radius:8px;
+background:#2a2a2a;color:#888;
+font-family:‘Inter’,sans-serif;font-size:11px;font-weight:600;
+cursor:pointer;transition:all .2s;white-space:nowrap;
+}
+.abtn.active{background:#e8e0d5;color:#1a1a1a}
+.abtn:hover:not(.active){background:#333;color:#bbb}
+
+.action-row{display:flex;gap:8px}
+.btn{
+flex:1;padding:12px;border:none;border-radius:10px;
+font-family:‘Inter’,sans-serif;font-size:12px;font-weight:600;
+cursor:pointer;transition:all .2s;
+}
+.btn-run{background:#e8e0d5;color:#1a1a1a}
+.btn-run:hover{background:#fff}
+.btn-rec{
+background:#c17a5a;color:#fff;
+display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-rec:hover{background:#d4896a}
+.btn-rec.recording{background:#ff3333;animation:recPulse 1s infinite}
+@keyframes recPulse{50%{background:#cc0000}}
+.rec-dot{width:8px;height:8px;border-radius:50%;background:#fff}
+
+.hint{font-size:10px;color:#444;text-align:center}
+</style>
+
+</head>
+<body>
+
+<div class="phone-wrap">
+  <canvas id="main" width="390" height="844"></canvas>
+</div>
+
+<div class="outer-controls">
+  <div class="algo-btns">
+    <button class="abtn active" onclick="selectAlgo('adhd',this)">ADHD</button>
+    <button class="abtn" onclick="selectAlgo('anxiety',this)">Anxiety</button>
+    <button class="abtn" onclick="selectAlgo('drunk',this)">Drunk</button>
+    <button class="abtn" onclick="selectAlgo('procrastination',this)">Procrastination</button>
+    <button class="abtn" onclick="selectAlgo('conspiracy',this)">Conspiracy</button>
+    <button class="abtn" onclick="selectAlgo('boomer',this)">Boomer</button>
+    <button class="abtn" onclick="selectAlgo('influencer',this)">Influencer</button>
+    <button class="abtn" onclick="selectAlgo('toddler',this)">Toddler</button>
+    <button class="abtn" onclick="selectAlgo('gpt',this)">ChatGPT</button>
+    <button class="abtn" onclick="selectAlgo('monday',this)">Monday</button>
+    <button class="abtn" onclick="selectAlgo('gaslight',this)">Gaslight</button>
+    <button class="abtn" onclick="selectAlgo('speedrun',this)">Speedrun</button>
+    <button class="abtn" onclick="selectAlgo('paranoid',this)">Paranoid</button>
+  </div>
+  <div class="action-row">
+    <button class="btn btn-run" onclick="runSort()">▶ Run</button>
+    <button class="btn btn-rec" id="rec-btn" onclick="toggleRecord()">
+      <div class="rec-dot"></div>
+      <span id="rec-label">Record MP4</span>
+    </button>
+  </div>
+  <div class="hint" id="hint">Press "Record MP4" to capture a full simulation as video</div>
+  <button id="sound-btn" onclick="unlockSound(this)" style="
+    width:100%;padding:10px;border:1.5px solid #c17a5a;border-radius:8px;
+    background:transparent;color:#c17a5a;font-family:Inter,sans-serif;
+    font-size:12px;font-weight:600;cursor:pointer;
+  ">🔇 Tap here first to enable sound</button>
+</div>
+
+<script>
+const canvas = document.getElementById('main');
+const ctx = canvas.getContext('2d');
+const W = 390, H = 844;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ─── STATE ─── */
+let arr = [], running = false, currentAlgo = 'adhd';
+let mediaRecorder = null, recordedChunks = [], isRecording = false;
+
+/* ─── SOUND ENGINE ─── */
+let audioCtx = null;
+let audioReady = false;
+
+function initAudio() {
+  if (audioReady) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    audioReady = true;
+  } catch(e) {}
+}
+
+// Must be called directly from a user tap — works on iOS/Android
+function unlockSound(btn) {
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Play a silent buffer to fully unlock on iOS
+    const buf = audioCtx.createBuffer(1, 1, 22050);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioCtx.destination);
+    src.start(0);
+    audioCtx.resume().then(() => {
+      audioReady = true;
+      btn.textContent = '🔊 Sound enabled!';
+      btn.style.borderColor = '#7a9e7e';
+      btn.style.color = '#7a9e7e';
+      setTimeout(() => { btn.style.display = 'none'; }, 1500);
+    });
+  } catch(e) {
+    btn.textContent = '❌ Sound not supported';
+  }
+}
+
+function beep(value, type = 'compare') {
+  if (!audioReady || !audioCtx) return;
+  try {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    if (window._audioDest) gain.connect(window._audioDest);
+
+    const freq = 180 + (value / 15) * 800;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    osc.type = type === 'swap' ? 'square' : 'sine';
+
+    const vol = type === 'swap' ? 0.15 : 0.08;
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
+
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.1);
+  } catch(e) {}
+}
+
+function beepSorted(val) {
+  if (!audioReady || !audioCtx) return;
+  try {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    [1, 1.25, 1.5].forEach((ratio, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      if (window._audioDest) gain.connect(window._audioDest);
+      const freq = (180 + (val/15)*800) * ratio;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.07, audioCtx.currentTime + i*0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.2);
+      osc.start(audioCtx.currentTime + i*0.03);
+      osc.stop(audioCtx.currentTime + 0.25);
+    });
+  } catch(e) {}
+}
+
+/* ─── DRAW HELPERS ─── */
+const BG    = '#e8e0d5';
+const IDLE  = '#c8bfb2';
+const ACTV  = '#c17a5a';
+const SORT  = '#7a9e7e';
+const PIVT  = '#5a7ac1';
+const SPEC  = '#c1b05a';
+
+function clearCanvas() {
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawHeader(name, desc, cx) {
+  // Name
+  ctx.fillStyle = '#1a1a1a';
+  ctx.font = 'bold 26px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(name, W/2, 58);
+  // Desc
+  ctx.fillStyle = '#888';
+  ctx.font = '13px Inter, sans-serif';
+  // word wrap desc
+  const words = desc.split(' ');
+  let line = '', y = 82;
+  for (const w of words) {
+    const test = line + w + ' ';
+    if (ctx.measureText(test).width > 340 && line) {
+      ctx.fillText(line.trim(), W/2, y); y += 18; line = w + ' ';
+    } else line = test;
+  }
+  ctx.fillText(line.trim(), W/2, y);
+  // complexity badge
+  ctx.strokeStyle = '#aaa';
+  ctx.lineWidth = 1.5;
+  const cx_w = ctx.measureText(cx).width + 28;
+  const cx_x = W/2 - cx_w/2, cx_y = y + 14;
+  roundRect(cx_x, cx_y, cx_w, 24, 12);
+  ctx.stroke();
+  ctx.fillStyle = '#666';
+  ctx.font = '11px Fira Code, monospace';
+  ctx.fillText(cx, W/2, cx_y + 16);
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.arcTo(x+w, y, x+w, y+r, r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.arcTo(x+w, y+h, x+w-r, y+h, r);
+  ctx.lineTo(x+r, y+h);
+  ctx.arcTo(x, y+h, x, y+h-r, r);
+  ctx.lineTo(x, y+r);
+  ctx.arcTo(x, y, x+r, y, r);
+  ctx.closePath();
+}
+
+function drawBars(a, hi={}) {
+  const barZoneTop = 155, barZoneH = 320;
+  const barW = (W - 40) / a.length - 3;
+  const maxV = Math.max(...a);
+  a.forEach((v, i) => {
+    const bh = Math.max(6, (v/maxV) * barZoneH);
+    const x = 20 + i * ((W-40)/a.length);
+    const y = barZoneTop + barZoneH - bh;
+    const state = hi[i] || 'idle';
+    const color = {idle:IDLE, active:ACTV, sorted:SORT, pivot:PIVT, special:SPEC}[state] || IDLE;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW, bh, [3,3,0,0]);
+    ctx.fill();
+    // label
+    ctx.fillStyle = '#999';
+    ctx.font = '9px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(v, x + barW/2, barZoneTop + barZoneH + 14);
+  });
+}
+
+function drawStatus(txt) {
+  ctx.fillStyle = '#999';
+  ctx.font = 'italic 12px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(txt, W/2, 500);
+}
+
+function drawCode(lines) {
+  // Code card
+  ctx.fillStyle = '#fff';
+  ctx.shadowColor = 'rgba(0,0,0,.1)';
+  ctx.shadowBlur = 12;
+  roundRect(16, 515, W-32, H-515-20, 14);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Header
+  ctx.fillStyle = '#aaa';
+  ctx.font = '10px Inter, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(ALGOS[currentAlgo].file, 30, 535);
+  ctx.fillStyle = '#ddd';
+  roundRect(W-70, 524, 44, 16, 6);
+  ctx.fill();
+  ctx.fillStyle = '#999';
+  ctx.font = '9px Fira Code, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Python', W-48, 535);
+
+  // divider
+  ctx.strokeStyle = '#f0f0f0';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(16, 544); ctx.lineTo(W-16, 544);
+  ctx.stroke();
+
+  // Code lines
+  ctx.textAlign = 'left';
+  const startY = 560;
+  const lineH = 18.5;
+  lines.forEach((segs, ln) => {
+    // line number
+    ctx.fillStyle = '#ccc';
+    ctx.font = '10px Fira Code, monospace';
+    ctx.fillText(ln+1, 22, startY + ln*lineH);
+    // code
+    let x = 44;
+    segs.forEach(seg => {
+      const color = {kw:'#c17a5a',fn:'#5a7ac1',cm:'#bbb',nm:'#7a9e7e',st:'#c1a05a','':'#333'}[seg.t||''] || '#333';
+      ctx.fillStyle = color;
+      if (seg.t === 'cm') ctx.font = 'italic 10px Fira Code, monospace';
+      else ctx.font = '10px Fira Code, monospace';
+      ctx.fillText(seg.s, x, startY + ln*lineH);
+      x += ctx.measureText(seg.s).width;
+    });
+  });
+}
+
+function renderFrame(hi={}, status='') {
+  const a = ALGOS[currentAlgo];
+  clearCanvas();
+  drawHeader(a.name, a.desc, a.cx);
+  drawBars(arr, hi);
+  drawStatus(status);
+  drawCode(a.code);
+
+  // Sound: beep based on highlighted bar state
+  const activeIdxs = Object.entries(hi);
+  if (activeIdxs.length > 0) {
+    const [idx, state] = activeIdxs[0];
+    const val = arr[parseInt(idx)];
+    if (val !== undefined) {
+      if (state === 'sorted') beepSorted(val);
+      else if (state === 'swap' || state === 'special') beep(val, 'swap');
+      else beep(val, 'compare');
+    }
+  }
+}
+
+/* ─── ALGOS ─── */
+const ALGOS = {
+  adhd: {
+    name:'ADHD Sort', file:'adhd_sort.py',
+    desc:'Sorts a little, gets distracted, sorts more, gets distracted again...',
+    cx:'O(n² + distractions)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'adhd_sort'},{t:'',s:'(arr):'}],
+      [{t:'',s:'  i, sorted_count '},{t:'kw',s:'= '},{t:'nm',s:'0, 0'}],
+      [{t:'kw',s:'  while '},{t:'',s:'sorted_count < len(arr):'}],
+      [{t:'kw',s:'    for '},{t:'',s:'j '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(i+1, len(arr)):'}],
+      [{t:'kw',s:'      if '},{t:'',s:'arr[j] < arr[i]: swap(i,j)'}],
+      [{t:'',s:'    sorted_count += '},{t:'nm',s:'1'}],
+      [{t:'cm',s:'    # wait, what was I doing?'}],
+      [{t:'kw',s:'    if '},{t:'fn',s:'random'},{t:'',s:'() < '},{t:'nm',s:'0.4'},{t:'',s:':'}],
+      [{t:'fn',s:'      swap'},{t:'',s:'(rand(), rand())  '},{t:'cm',s:'# oops'}],
+    ],
+    run: async () => {
+      let sortedCount=0, ops=0;
+      while(sortedCount<arr.length&&running){
+        for(let j=0;j<arr.length-1&&running;j++){
+          ops++;
+          renderFrame({[j]:'active',[j+1]:'active'},`pass ${sortedCount+1}, comparing ${arr[j]} and ${arr[j+1]}`);
+          await sleep(55);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];renderFrame({[j]:'active',[j+1]:'active'},'swapping!');await sleep(35);}
+        }
+        sortedCount++;
+        if(Math.random()<0.45&&running){
+          const a=Math.floor(Math.random()*arr.length),b=Math.floor(Math.random()*arr.length);
+          [arr[a],arr[b]]=[arr[b],arr[a]];
+          renderFrame({[a]:'special',[b]:'special'},'oh wait... squirrel 🐿');
+          await sleep(500);
+        }
+      }
+      return ops;
+    }
+  },
+  anxiety: {
+    name:'Anxiety Sort', file:'anxiety_sort.py',
+    desc:'Checks if sorted, panics that it missed something, checks again and again...',
+    cx:'O(n² × panic_level)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'anxiety_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # is it sorted? what if it\'s not?'}],
+      [{t:'kw',s:'  while not '},{t:'fn',s:'is_sorted'},{t:'',s:'(arr):'}],
+      [{t:'kw',s:'    for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)-1):'}],
+      [{t:'kw',s:'      if '},{t:'',s:'arr[i] > arr[i+1]:'}],
+      [{t:'fn',s:'        swap'},{t:'',s:'(arr, i, i+1)'}],
+      [{t:'cm',s:'      # but what about index 0??'}],
+      [{t:'fn',s:'      recheck_from_start'},{t:'',s:'()'}],
+      [{t:'cm',s:'  # (just in case)'}],
+    ],
+    run: async () => {
+      let ops=0,passes=0;
+      const isSorted=a=>a.every((v,i)=>i===0||a[i-1]<=v);
+      while(!isSorted(arr)&&running){
+        passes++;
+        for(let i=0;i<arr.length-1&&running;i++){
+          ops++;
+          renderFrame({[i]:'active',[i+1]:'active'},`checking i=${i}... but what about i=0??`);
+          await sleep(50);
+          if(arr[i]>arr[i+1]){[arr[i],arr[i+1]]=[arr[i+1],arr[i]];renderFrame({[i]:'active',[i+1]:'active'},'swapping — wait did I miss one??');await sleep(30);}
+          if(Math.random()<0.2&&running){renderFrame({[0]:'special',[1]:'special'},'wait — did i miss something at the start? 😰');await sleep(280);}
+        }
+      }
+      return ops;
+    }
+  },
+  drunk: {
+    name:'Drunk Sort', file:'drunk_sort.py',
+    desc:'Mostly sorts in the right direction. Sometimes. Kind of.',
+    cx:'O(n! × blood_alcohol)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'drunk_sort'},{t:'',s:'(arr, bac='},{t:'nm',s:'0.08'},{t:'',s:'):'}],
+      [{t:'kw',s:'  for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)*3):'}],
+      [{t:'cm',s:'    # try to find the right spot... probably'}],
+      [{t:'',s:'    a = '},{t:'fn',s:'rand'},{t:'',s:'(); b = '},{t:'fn',s:'rand'},{t:'',s:'()'}],
+      [{t:'kw',s:'    if '},{t:'',s:'random() > bac:  '},{t:'cm',s:'# sober enough'}],
+      [{t:'kw',s:'      if '},{t:'',s:'arr[a] > arr[b]:'}],
+      [{t:'fn',s:'        swap'},{t:'',s:'(arr, a, b)'}],
+      [{t:'kw',s:'    else'},{t:'',s:':  '},{t:'cm',s:'# just swap randomly'}],
+      [{t:'fn',s:'      swap'},{t:'',s:'(arr, rand(), rand())'}],
+    ],
+    run: async () => {
+      let ops=0;
+      const msgs=['hic...','wooah','i got this 💪','wait which way','left? right?','im fine trust me','almost...','just one more swap'];
+      for(let i=0;i<arr.length*4&&running;i++){
+        ops++;
+        const a=Math.floor(Math.random()*arr.length),b=Math.floor(Math.random()*arr.length);
+        renderFrame({[a]:'active',[b]:'active'},msgs[Math.floor(Math.random()*msgs.length)]);
+        await sleep(75);
+        if(Math.random()<0.6){if(arr[a]>arr[b]){[arr[a],arr[b]]=[arr[b],arr[a]];renderFrame({[a]:'sorted',[b]:'sorted'},'good swap ✓');await sleep(40);}}
+        else{[arr[a],arr[b]]=[arr[b],arr[a]];renderFrame({[a]:'special',[b]:'special'},'oops 🍺');await sleep(55);}
+      }
+      arr.sort((x,y)=>x-y);
+      return ops;
+    }
+  },
+  procrastination: {
+    name:'Procrastination Sort', file:'procrastination_sort.py',
+    desc:'Will sort eventually. Maybe tomorrow. Definitely by end of week.',
+    cx:'O(∞) → O(n log n) at deadline',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'procrastination_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # I\'ll do it later'}],
+      [{t:'kw',s:'  while not '},{t:'fn',s:'deadline_passed'},{t:'',s:'():'}],
+      [{t:'fn',s:'    scroll_tiktok'},{t:'',s:'()'}],
+      [{t:'fn',s:'    make_coffee'},{t:'',s:'()'}],
+      [{t:'cm',s:'  # okay fine, it\'s due in 5 mins'}],
+      [{t:'cm',s:'  # PANIC MODE: use quicksort'}],
+      [{t:'fn',s:'  quicksort'},{t:'',s:'(arr)'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# nailed it'}],
+    ],
+    run: async () => {
+      const excuses=['I\'ll start after this video...','let me make coffee first ☕','just 5 more minutes...','I work better under pressure 💪','warming up the algorithm...','doing preliminary research 📱','creating the perfect playlist 🎵','okay for real this time...','...after this one last thing','💀 DEADLINE IN 10 SECONDS'];
+      for(let i=0;i<excuses.length&&running;i++){
+        renderFrame(i<8?{}:{[Math.floor(Math.random()*arr.length)]:'special'},excuses[i]);
+        await sleep(i<8?700:180);
+      }
+      // panic quicksort
+      async function qs(lo,hi){
+        if(lo>=hi)return;const piv=arr[hi];let i=lo-1;
+        for(let j=lo;j<hi&&running;j++){renderFrame({[j]:'active',[hi]:'pivot'},'PANIC SORTING 😱');await sleep(18);if(arr[j]<=piv){i++;[arr[i],arr[j]]=[arr[j],arr[i]];}}
+        [arr[i+1],arr[hi]]=[arr[hi],arr[i+1]];await qs(lo,i);await qs(i+2,hi);
+      }
+      await qs(0,arr.length-1);
+      return 42;
+    }
+  },
+  conspiracy: {
+    name:'Conspiracy Sort', file:'conspiracy_sort.py',
+    desc:'Suspects every element is in the wrong place. Trust no one.',
+    cx:'O(n² × suspicion)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'conspiracy_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # they\'re ALL lying about position'}],
+      [{t:'kw',s:'  for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)):'}],
+      [{t:'kw',s:'    for '},{t:'',s:'j '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)):'}],
+      [{t:'cm',s:'      # verify EVERY element. trust no one.'}],
+      [{t:'kw',s:'      if '},{t:'fn',s:'suspicious'},{t:'',s:'(arr[i], arr[j]):'}],
+      [{t:'fn',s:'        interrogate'},{t:'',s:'(arr, i, j)'}],
+      [{t:'kw',s:'      if '},{t:'',s:'arr[i] > arr[j]:  '},{t:'cm',s:'# AHA!'}],
+      [{t:'fn',s:'        swap'},{t:'',s:'(arr, i, j)  '},{t:'cm',s:'# gotcha'}],
+    ],
+    run: async () => {
+      let ops=0;
+      const msgs=[`suspicious 🔍`,`why HERE of all places??`,`clearly hiding something`,`can't be trusted`,`the algo is compromised`,`who put this here? WHO??`];
+      for(let i=0;i<arr.length&&running;i++){
+        for(let j=0;j<arr.length&&running;j++){
+          ops++;
+          renderFrame({[i]:'active',[j]:'pivot'},`arr[${i}]=${arr[i]} is ${msgs[Math.floor(Math.random()*msgs.length)]}`);
+          await sleep(30);
+          if(arr[i]>arr[j]){[arr[i],arr[j]]=[arr[j],arr[i]];renderFrame({[i]:'special',[j]:'special'},'AHA! gotcha 🎯');await sleep(25);}
+        }
+        renderFrame({[i]:'sorted'},`arr[${i}] cleared of suspicion`);
+        await sleep(60);
+      }
+      return ops;
+    }
+  },
+
+  boomer: {
+    name:'Boomer Sort', file:'boomer_sort.py',
+    desc:'Refuses to use modern methods. "We sorted arrays uphill both ways in the snow."',
+    cx:'O(n² ) — worked fine in my day',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'boomer_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # no fancy algorithms. just hard work.'}],
+      [{t:'kw',s:'  for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)):'}],
+      [{t:'kw',s:'    for '},{t:'',s:'j '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)-1):'}],
+      [{t:'cm',s:'      # none of that recursion nonsense'}],
+      [{t:'kw',s:'      if '},{t:'',s:'arr[j] > arr[j+1]:'}],
+      [{t:'fn',s:'        swap'},{t:'',s:'(arr, j, j+1)'}],
+      [{t:'cm',s:'      # back in my day we had 640KB RAM'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# you\'re welcome'}],
+    ],
+    run: async () => {
+      let ops=0;
+      const msgs=['back in my day...','none of that fancy stuff','just hard work','we didnt have quicksort','and we liked it!','640KB was enough for everyone','no participation trophies here','uphill both ways in the snow'];
+      for(let i=0;i<arr.length&&running;i++){
+        for(let j=0;j<arr.length-1&&running;j++){
+          ops++;
+          renderFrame({[j]:'active',[j+1]:'active'},msgs[ops%msgs.length]);
+          await sleep(65);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];renderFrame({[j]:'pivot',[j+1]:'pivot'},'hard work pays off ✓');await sleep(45);}
+        }
+      }
+      return ops;
+    }
+  },
+
+  influencer: {
+    name:'Influencer Sort', file:'influencer_sort.py',
+    desc:'Sorts by engagement rate. Big numbers go first regardless of actual value.',
+    cx:'O(n × followers)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'influencer_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # sort by vibe, not value'}],
+      [{t:'kw',s:'  for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)):'}],
+      [{t:'cm',s:'    # pause for sponsored content'}],
+      [{t:'kw',s:'    if '},{t:'fn',s:'random'},{t:'',s:'() < '},{t:'nm',s:'0.3'},{t:'',s:':'}],
+      [{t:'fn',s:'      post_selfie'},{t:'',s:'()  '},{t:'cm',s:'# ad revenue'}],
+      [{t:'kw',s:'    if '},{t:'',s:'vibes(arr[i]) > vibes(arr[i-1]):'}],
+      [{t:'fn',s:'      swap'},{t:'',s:'(arr, i, i-1)'}],
+      [{t:'cm',s:'  # link in bio for the sorted arr'}],
+    ],
+    run: async () => {
+      let ops=0;
+      const sponsored=['use code SORT10 for 10% off 🎁','this sort is brought to you by...','smash that subscribe button 🔔','link in bio for the full algo','not sponsored (totally sponsored)','collab with @bubblesort incoming'];
+      for(let i=1;i<arr.length&&running;i++){
+        for(let j=i;j>0&&running;j--){
+          ops++;
+          if(Math.random()<0.3){
+            renderFrame({[j]:'special'},sponsored[Math.floor(Math.random()*sponsored.length)]);
+            await sleep(600);
+          }
+          renderFrame({[j]:'active',[j-1]:'active'},`checking engagement of arr[${j}]... ✨`);
+          await sleep(55);
+          if(arr[j]<arr[j-1]){[arr[j],arr[j-1]]=[arr[j-1],arr[j]];renderFrame({[j]:'sorted',[j-1]:'sorted'},'slay! ✓');await sleep(40);}
+          else break;
+        }
+      }
+      return ops;
+    }
+  },
+
+  toddler: {
+    name:'Toddler Sort', file:'toddler_sort.py',
+    desc:'Makes progress, gets tired, throws everything on the floor, starts over.',
+    cx:'O(n² + tantrums)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'toddler_sort'},{t:'',s:'(arr):'}],
+      [{t:'',s:'  energy = '},{t:'nm',s:'100'}],
+      [{t:'kw',s:'  while not '},{t:'fn',s:'is_sorted'},{t:'',s:'(arr):'}],
+      [{t:'kw',s:'    if '},{t:'',s:'energy <= '},{t:'nm',s:'0'},{t:'',s:':  '},{t:'cm',s:'# tired'}],
+      [{t:'fn',s:'      throw_everything'},{t:'',s:'()  '},{t:'cm',s:'# WHY'}],
+      [{t:'fn',s:'      nap'},{t:'',s:'(30)  '},{t:'cm',s:'# recharge'}],
+      [{t:'fn',s:'    bubble_step'},{t:'',s:'(arr)'}],
+      [{t:'',s:'    energy -= '},{t:'nm',s:'10'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# finally'}],
+    ],
+    run: async () => {
+      let ops=0, energy=100, tantrums=0;
+      const isSorted=a=>a.every((v,i)=>i===0||a[i-1]<=v);
+      while(!isSorted(arr)&&running){
+        for(let j=0;j<arr.length-1&&running;j++){
+          ops++;energy-=2;
+          renderFrame({[j]:'active',[j+1]:'active'},`energy: ${energy}% 🍼`);
+          await sleep(50);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];}
+          if(energy<=0){
+            tantrums++;
+            renderFrame({},'😭 NOOOOO *throws everything*');
+            await sleep(600);
+            arr=arr.sort(()=>Math.random()-.5);
+            energy=100;
+            renderFrame({},'😴 napping... recharging...');
+            await sleep(800);
+            break;
+          }
+        }
+      }
+      return ops;
+    }
+  },
+
+  gpt: {
+    name:'ChatGPT Sort', file:'gpt_sort.py',
+    desc:'Confidently sorts the wrong array. Apologizes. Sorts wrong array again.',
+    cx:'O(n × hallucinations)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'gpt_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # I\'d be happy to sort that!'}],
+      [{t:'',s:'  wrong_arr = '},{t:'fn',s:'hallucinate'},{t:'',s:'()'}],
+      [{t:'fn',s:'  quicksort'},{t:'',s:'(wrong_arr)  '},{t:'cm',s:'# confidently'}],
+      [{t:'cm',s:'  # actually, let me reconsider'}],
+      [{t:'kw',s:'  if '},{t:'fn',s:'user_complains'},{t:'',s:'():'}],
+      [{t:'cm',s:'    # apologize and try again'}],
+      [{t:'fn',s:'    quicksort'},{t:'',s:'(wrong_arr)  '},{t:'cm',s:'# same mistake'}],
+      [{t:'kw',s:'  return '},{t:'',s:'"arr is sorted ✓"  '},{t:'cm',s:'# it\'s not'}],
+    ],
+    run: async () => {
+      let ops=0;
+      const responses=['Great question! Sorting now...','I\'d be happy to help! 😊','As an AI, I can sort this...','Certainly! Here\'s the approach:','I\'ll sort arr with O(n²)...','Actually, let me reconsider...','I apologize for any confusion','To sort this array, we simply...','Note: arr[3] may be incorrect','I cannot sort arr as requested'];
+      // sort wrong copy first
+      const wrongArr=[...arr].reverse();
+      for(let i=0;i<wrongArr.length-1&&running;i++){
+        for(let j=0;j<wrongArr.length-i-1&&running;j++){
+          ops++;
+          renderFrame({[j]:'active',[j+1]:'active'},responses[ops%responses.length]);
+          await sleep(40);
+          if(wrongArr[j]>wrongArr[j+1]){[wrongArr[j],wrongArr[j+1]]=[wrongArr[j+1],wrongArr[j]];}
+        }
+      }
+      renderFrame({},'✓ Sorted! (wrong array but confident)');
+      await sleep(800);
+      // "apologize" and sort actual arr
+      renderFrame({},'I apologize — let me redo that 🙏');
+      await sleep(700);
+      for(let i=0;i<arr.length-1&&running;i++){
+        for(let j=0;j<arr.length-i-1&&running;j++){
+          ops++;
+          renderFrame({[j]:'pivot',[j+1]:'pivot'},'Re-sorting with full context...');
+          await sleep(30);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];}
+        }
+      }
+      return ops;
+    }
+  },
+
+  monday: {
+    name:'Monday Sort', file:'monday_sort.py',
+    desc:'Does nothing until Wednesday. Bursts of productivity on Thursday. Gives up Friday.',
+    cx:'O(5 days × procrastination)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'monday_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # ugh. not today.'}],
+      [{t:'fn',s:'  do_nothing'},{t:'',s:'()  '},{t:'cm',s:'# monday'}],
+      [{t:'fn',s:'  do_nothing'},{t:'',s:'()  '},{t:'cm',s:'# tuesday'}],
+      [{t:'kw',s:'  for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)):  '},{t:'cm',s:'# wed'}],
+      [{t:'fn',s:'    sort_step'},{t:'',s:'(arr, i)  '},{t:'cm',s:'# thursday!'}],
+      [{t:'cm',s:'  # friday: close enough'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# good enough™'}],
+    ],
+    run: async () => {
+      const days=[
+        {day:'Monday',msgs:['ugh','not today','send help','where\'s my coffee','why'],ms:700},
+        {day:'Tuesday',msgs:['still no','meetings all day','reply-all chaos','zoning out'],ms:600},
+        {day:'Wednesday',msgs:['ok getting started','opening the file','reading the task','alright...'],ms:400},
+        {day:'Thursday',msgs:['LET\'S GO','in the zone 🔥','crushing it','no meetings today'],ms:45},
+        {day:'Friday',msgs:['close enough','shipping it','not my problem','TGIF'],ms:200},
+      ];
+      let ops=0;
+      for(const d of days){
+        if(!running)break;
+        for(let k=0;k<4&&running;k++){
+          renderFrame({},`${d.day}: ${d.msgs[k%d.msgs.length]}`);
+          await sleep(d.ms);
+        }
+        if(d.day==='Thursday'){
+          for(let i=0;i<arr.length-1&&running;i++){
+            for(let j=0;j<arr.length-i-1&&running;j++){
+              ops++;renderFrame({[j]:'active',[j+1]:'active'},'Thursday energy 🔥');
+              await sleep(d.ms);
+              if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];}
+            }
+          }
+        }
+      }
+      return ops;
+    }
+  },
+
+  gaslight: {
+    name:'Gaslight Sort', file:'gaslight_sort.py',
+    desc:'Tells you the array is already sorted. It\'s not. You\'re imagining things.',
+    cx:'O(1) — it was sorted all along',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'gaslight_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # the array is fine. YOU\'RE the problem.'}],
+      [{t:'kw',s:'  if not '},{t:'fn',s:'is_sorted'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'    # deny everything'}],
+      [{t:'fn',s:'    print'},{t:'',s:'('},{t:'st',s:'"it\'s sorted"'},{t:'',s:')'}],
+      [{t:'cm',s:'    # secretly fix it while denying'}],
+      [{t:'kw',s:'    for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(len(arr)):'}],
+      [{t:'fn',s:'      sneaky_swap'},{t:'',s:'(arr, i)  '},{t:'cm',s:'# shhh'}],
+      [{t:'kw',s:'  return '},{t:'',s:'"always was sorted"'},],
+    ],
+    run: async () => {
+      let ops=0;
+      const gaslights=['it was sorted the whole time','you\'re imagining the disorder','arr looks fine to me 🤷','maybe YOU\'RE the unsorted one','i don\'t see any issue here','the array is not the problem','are you sure you checked?','it was like this when I got here'];
+      renderFrame({},gaslights[0]);await sleep(700);
+      renderFrame({},gaslights[1]);await sleep(700);
+      // secretly sort while gaslighting
+      for(let i=0;i<arr.length-1&&running;i++){
+        for(let j=0;j<arr.length-i-1&&running;j++){
+          ops++;
+          const msg=gaslights[ops%gaslights.length];
+          const hi={};hi[j]='idle';hi[j+1]='idle'; // make it look like nothing is happening
+          renderFrame(hi,msg);
+          await sleep(55);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];}
+        }
+      }
+      renderFrame({},'see? it was sorted all along. you\'re welcome.');
+      await sleep(800);
+      return ops;
+    }
+  },
+
+  speedrun: {
+    name:'Speedrun Sort', file:'speedrun_sort.py',
+    desc:'Any% no major glitches. World record pace. Skips half the array.',
+    cx:'O(n/2) — skips cutscenes',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'speedrun_sort'},{t:'',s:'(arr):'}],
+      [{t:'cm',s:'  # any% world record attempt'}],
+      [{t:'cm',s:'  # skip intro'}],
+      [{t:'fn',s:'  skip'},{t:'',s:'(arr[:len(arr)//2])  '},{t:'cm',s:'# out of bounds'}],
+      [{t:'kw',s:'  for '},{t:'',s:'i '},{t:'kw',s:'in '},{t:'fn',s:'range'},{t:'',s:'(0, len(arr), 2):'}],
+      [{t:'cm',s:'    # optimised movement'}],
+      [{t:'fn',s:'    swap_if_needed'},{t:'',s:'(arr, i, i+1)'}],
+      [{t:'cm',s:'  # credit warp'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# GG EZ'}],
+    ],
+    run: async () => {
+      let ops=0;
+      const lines=['any% WR attempt 🎮','loading save state...','skipping intro cutscene','optimised movement tech','out of bounds skip!','credit warp incoming','wrong warp activated!','sub-30s pace 🔥','new route discovered','GG EZ'];
+      renderFrame({},lines[0]);await sleep(300);
+      renderFrame({},lines[1]);await sleep(400);
+      // "skip" first half — sort it instantly
+      const half=Math.floor(arr.length/2);
+      arr.slice(0,half).sort((a,b)=>a-b).forEach((v,i)=>arr[i]=v);
+      renderFrame(Object.fromEntries(arr.slice(0,half).map((_,i)=>[i,'sorted'])),'skipping first half (OoB glitch)');
+      await sleep(400);
+      // speedrun second half very fast
+      for(let i=half;i<arr.length-1&&running;i++){
+        for(let j=half;j<arr.length-1-(i-half)&&running;j++){
+          ops++;
+          renderFrame({[j]:'active',[j+1]:'pivot'},lines[ops%lines.length]);
+          await sleep(22);
+          if(arr[j]>arr[j+1]){[arr[j],arr[j+1]]=[arr[j+1],arr[j]];}
+        }
+      }
+      arr.sort((a,b)=>a-b); // credit warp = just sort lol
+      return ops;
+    }
+  },
+
+  paranoid: {
+    name:'Paranoid Sort', file:'paranoid_sort.py',
+    desc:'Sorts correctly, but keeps re-verifying. What if someone changed it while it wasn\'t looking?',
+    cx:'O(n² × re-verifications)',
+    code:[
+      [{t:'kw',s:'def '},{t:'fn',s:'paranoid_sort'},{t:'',s:'(arr):'}],
+      [{t:'fn',s:'  insertion_sort'},{t:'',s:'(arr)  '},{t:'cm',s:'# sorted.'}],
+      [{t:'cm',s:'  # ...but what if it changed?'}],
+      [{t:'kw',s:'  while '},{t:'fn',s:'random'},{t:'',s:'() < '},{t:'nm',s:'0.95'},{t:'',s:':'}],
+      [{t:'fn',s:'    verify_every_element'},{t:'',s:'(arr)'}],
+      [{t:'cm',s:'    # check again. and again.'}],
+      [{t:'fn',s:'    verify_every_element'},{t:'',s:'(arr)'}],
+      [{t:'cm',s:'    # maybe one more time just in case'}],
+      [{t:'kw',s:'  return '},{t:'',s:'arr  '},{t:'cm',s:'# ...for now'}],
+    ],
+    run: async () => {
+      let ops=0, verifications=0;
+      // First: actually sort correctly
+      for(let i=1;i<arr.length&&running;i++){
+        const key=arr[i];let j=i-1;
+        while(j>=0&&arr[j]>key&&running){ops++;arr[j+1]=arr[j];j--;renderFrame({[j+1]:'active',[i]:'pivot'},'sorting...');await sleep(30);}
+        arr[j+1]=key;
+      }
+      renderFrame(Object.fromEntries(arr.map((_,i)=>[i,'sorted'])),'sorted! ...but what if it changed? 👀');
+      await sleep(500);
+      // Now obsessively re-verify
+      while(Math.random()<0.92&&running&&verifications<12){
+        verifications++;
+        for(let i=0;i<arr.length&&running;i++){
+          ops++;
+          renderFrame({[i]:'active'},`re-verification #${verifications}: checking arr[${i}]=${arr[i]}... seems fine... OR IS IT?`);
+          await sleep(40);
+        }
+        renderFrame(Object.fromEntries(arr.map((_,i)=>[i,'sorted'])),`still sorted after check #${verifications}. probably. maybe.`);
+        await sleep(350);
+      }
+      return ops;
+    }
+  }
+};
+
+/* ─── RECORDING ─── */
+function toggleRecord() {
+  if (isRecording) stopRecord();
+  else startRecord();
+}
+
+function startRecord() {
+  initAudio();
+  recordedChunks = [];
+
+  // Capture video from canvas
+  const videoStream = canvas.captureStream(30);
+
+  // Capture audio from WebAudio context
+  let finalStream = videoStream;
+  try {
+    if (audioCtx) {
+      const dest = audioCtx.createMediaStreamDestination();
+      // Route all future audio through this dest too
+      window._audioDest = dest;
+      const audioStream = dest.stream;
+      const tracks = [...videoStream.getTracks(), ...audioStream.getTracks()];
+      finalStream = new MediaStream(tracks);
+    }
+  } catch(e) { console.log('Audio capture failed, video only', e); }
+
+  const mimeType = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m)) || 'video/webm';
+  mediaRecorder = new MediaRecorder(finalStream, {mimeType, videoBitsPerSecond:8000000});
+  mediaRecorder.ondataavailable = e => { if(e.data.size>0) recordedChunks.push(e.data); };
+  mediaRecorder.onstop = saveVideo;
+  mediaRecorder.start(100);
+  isRecording = true;
+  document.getElementById('rec-btn').classList.add('recording');
+  document.getElementById('rec-label').textContent = 'Recording... (tap to stop)';
+  document.getElementById('hint').textContent = 'Recording in progress — press stop when sort finishes';
+  runSort();
+}
+
+function stopRecord() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  isRecording = false;
+  running = false;
+  window._audioDest = null;
+  document.getElementById('rec-btn').classList.remove('recording');
+  document.getElementById('rec-label').textContent = 'Record MP4';
+  document.getElementById('hint').textContent = 'Saving video...';
+}
+
+function saveVideo() {
+  const blob = new Blob(recordedChunks, {type:'video/webm'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${currentAlgo}-sort-tiktok.webm`;
+  a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('hint').textContent = '✓ Video saved! (.webm — works on TikTok & convertible to MP4)';
+}
+
+/* ─── CONTROLS ─── */
+function selectAlgo(key, el) {
+  running = false; currentAlgo = key;
+  document.querySelectorAll('.abtn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  arr = Array.from({length:15},(_,i)=>i+1).sort(()=>Math.random()-.5);
+  renderFrame({},'');
+}
+
+async function runSort() {
+  initAudio();
+  if (running) { running=false; await sleep(100); }
+  running = true;
+  arr = Array.from({length:15},(_,i)=>i+1).sort(()=>Math.random()-.5);
+  renderFrame({},'starting...');
+  await sleep(300);
+  const ops = await ALGOS[currentAlgo].run();
+  if (running) {
+    renderFrame(Object.fromEntries(arr.map((_,i)=>[i,'sorted'])),`✓ sorted — ${ops} operations`);
+    running = false;
+    if (isRecording) setTimeout(stopRecord, 1200);
+  }
+}
+
+/* INIT */
+arr = Array.from({length:15},(_,i)=>i+1).sort(()=>Math.random()-.5);
+renderFrame({},'');
+</script>
+
+</body>
+</html>
